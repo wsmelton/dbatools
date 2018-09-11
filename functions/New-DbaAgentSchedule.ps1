@@ -124,7 +124,7 @@ function New-DbaAgentSchedule {
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "Low")]
     param (
-        [parameter(Mandatory, ValueFromPipeline)]
+        [parameter(Mandatory = $true, ValueFromPipeline = $true)]
         [Alias("ServerInstance", "SqlServer")]
         [DbaInstanceParameter[]]$SqlInstance,
         [System.Management.Automation.PSCredential]
@@ -132,14 +132,14 @@ function New-DbaAgentSchedule {
         [object[]]$Job,
         [object]$Schedule,
         [switch]$Disabled,
-        [ValidateSet('Once', 'Daily', 'Weekly', 'Monthly', 'MonthlyRelative', 'AgentStart', 'IdleComputer')]
+        [ValidateSet('OneTime', 'Once', 'Daily', 'Weekly', 'Monthly', 'MonthlyRelative', 'AgentStart', 'IdleComputer', 0, 1, 4, 8, 16, 32, 64, 128)]
         [object]$FrequencyType,
-        [ValidateSet('EveryDay', 'Weekdays', 'Weekend', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31)]
+        [ValidateSet('EveryDay', 'Weekdays', 'Weekend', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31)]
         [object[]]$FrequencyInterval,
-        [ValidateSet('Time', 'Seconds', 'Minutes', 'Hours')]
+        [ValidateSet('Unknown', 'OneTime', 'Once','Time', 'Seconds', 'Minutes', 'Hours')]
         [object]$FrequencySubdayType,
         [int]$FrequencySubdayInterval,
-        [ValidateSet('Unused', 'First', 'Second', 'Third', 'Fourth', 'Last')]
+        [ValidateSet('Unused', 'First', 'Second', 'Third', 'Fourth', 'Last', 0, 1, 2, 4, 8, 16, 32, 64, 62, 65, 127)]
         [object]$FrequencyRelativeInterval,
         [int]$FrequencyRecurrenceFactor,
         [string]$StartDate,
@@ -164,6 +164,7 @@ function New-DbaAgentSchedule {
         if (!$FrequencyType -or $FrequencyType) {
             [int]$FrequencyType =
             switch ($FrequencyType) {
+                "OneTime" { 1 }
                 "Once" { 1 }
                 "Daily" { 4 }
                 "Weekly" { 8 }
