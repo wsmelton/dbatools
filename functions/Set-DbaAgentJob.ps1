@@ -171,7 +171,7 @@ Changes a job with the name "Job1" on multiple servers to have another descripti
         [ValidateSet(0, "Never", 1, "OnSuccess", 2, "OnFailure", 3, "Always")]
         [object]$DeleteLevel,
         [switch]$Force,
-        [parameter(ValueFromPipeline)]
+        [parameter(ValueFromPipeline = $true)]
         [Microsoft.SqlServer.Management.Smo.Agent.Job[]]$InputObject,
         [switch][Alias('Silent')]
         $EnableException
@@ -501,7 +501,8 @@ Changes a job with the name "Job1" on multiple servers to have another descripti
                 catch {
                     Stop-Function -Message "Something went wrong changing the job" -ErrorRecord $_ -Target $instance -Continue
                 }
-                Get-DbaAgentJob -SqlInstance $server | Where-Object Name -eq $currentjob.name
+
+                Get-DbaAgentJob -SqlInstance $server | Where-Object {$_.Name -eq $currentjob.name}
             }
         }
     }
