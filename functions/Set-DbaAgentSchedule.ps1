@@ -123,49 +123,35 @@ Changes the schedule for Job1 with the name 'daily' to enabled on multiple serve
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "Low")]
 
     param (
-        [parameter(Mandatory, ValueFromPipeline)]
+        [parameter(Mandatory = $true, ValueFromPipeline = $true)]
         [Alias("ServerInstance", "SqlServer")]
         [DbaInstanceParameter[]]$SqlInstance,
-        [Parameter(Mandatory = $false)]
         [PSCredential]$SqlCredential,
-        [Parameter(Mandatory, ValueFromPipeline)]
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
         [ValidateNotNullOrEmpty()]
         [object[]]$Job,
-        [Parameter(Mandatory, ValueFromPipeline)]
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
         [ValidateNotNullOrEmpty()]
         [string]$ScheduleName,
-        [Parameter(Mandatory = $false)]
         [string]$NewName,
-        [Parameter(Mandatory = $false)]
         [switch]$Enabled,
-        [Parameter(Mandatory = $false)]
         [switch]$Disabled,
-        [ValidateSet(1, "Once", 4, "Daily", 8, "Weekly", 16, "Monthly", 32, "MonthlyRelative", 64, "AgentStart", 128, "IdleComputer")]
+        [ValidateSet('OneTime', 'Once', 'Daily', 'Weekly', 'Monthly', 'MonthlyRelative', 'AgentStart', 'IdleComputer', 0, 1, 4, 8, 16, 32, 64, 128)]
         [object]$FrequencyType,
-        [Parameter(Mandatory = $false)]
+        [ValidateSet('EveryDay', 'Weekdays', 'Weekend', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31)]
         [object[]]$FrequencyInterval,
-        [Parameter(Mandatory = $false)]
         [ValidateSet(1, "Time", 2, "Seconds", 4, "Minutes", 8, "Hours")]
         [object]$FrequencySubdayType,
-        [Parameter(Mandatory = $false)]
         [int]$FrequencySubdayInterval,
-        [Parameter(Mandatory = $false)]
-        [ValidateSet('Unused', 'First', 'Second', 'Third', 'Fourth', 'Last')]
+        [ValidateSet('Unused', 'First', 'Second', 'Third', 'Fourth', 'Last', 0, 1, 2, 4, 8, 16, 32, 64, 62, 65, 127)]
         [object]$FrequencyRelativeInterval,
-        [Parameter(Mandatory = $false)]
         [int]$FrequencyRecurrenceFactor,
-        [Parameter(Mandatory = $false)]
         [string]$StartDate,
-        [Parameter(Mandatory = $false)]
         [string]$EndDate,
-        [Parameter(Mandatory = $false)]
         [string]$StartTime,
-        [Parameter(Mandatory = $false)]
         [string]$EndTime,
-        [Parameter(Mandatory = $false)]
         [Alias('Silent')]
         [switch]$EnableException,
-        [Parameter(Mandatory = $false)]
         [switch]$Force
     )
 
