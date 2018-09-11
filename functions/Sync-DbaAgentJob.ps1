@@ -58,6 +58,14 @@ function Sync-DbaAgentJob {
             https://dbatools.io/Sync-DbaAgentJob
 
         .EXAMPLE
+            Sync-DbaAgentJob -SourceSqlInstance sqldb1 -DestinationSqlInstance sqldb2 -Job job1, job2, job3
+
+            Sychronize multiple jobs from sqldb1 to sqldb2
+
+        .EXAMPLE
+            Sync-DbaAgentJob -SourceSqlInstance sqldb1 -DestinationSqlInstance sqldb2, sqldb3 -Job job1
+
+            Synchronize a job from sqldb1 to multiple instances
 
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "Low")]
