@@ -72,7 +72,11 @@ function Test-DbaPath {
                 $PathsBatch = $g.Group
                 $query = @()
                 foreach ($p in $PathsBatch) {
-                    $query += "EXEC master.dbo.xp_fileexist '$p'"
+                    if ($server.VersionMajor -ge 14) {
+                        $query += "select * from sys.dm_os_file_exists('$p')"
+                    } else {
+                        $query += "EXEC master.dbo.xp_fileexist '$p'"
+                    }
                 }
                 $sql = $query -join ';'
                 $batchresult = $server.ConnectionContext.ExecuteWithResults($sql)

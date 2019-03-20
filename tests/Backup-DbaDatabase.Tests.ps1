@@ -1,6 +1,6 @@
 $CommandName = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
 Write-Host -Object "Running $PSCommandPath" -ForegroundColor Cyan
-. "$PSScriptRoot\constants.ps1"
+. "./constants.ps1"
 
 Describe "$CommandName Unit Tests" -Tag 'UnitTests' {
     Context "Validate parameters" {
@@ -16,7 +16,7 @@ Describe "$CommandName Unit Tests" -Tag 'UnitTests' {
 Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
 
     Context "Properly restores a database on the local drive using Path" {
-        $results = Backup-DbaDatabase -SqlInstance $script:instance1 -BackupDirectory C:\temp\backups
+        $results = Backup-DbaDatabase -SqlInstance $script:instance1 -BackupDirectory $DestBackupDir
         It "Should return a database name, specifically master" {
             ($results.DatabaseName -contains 'master') | Should -Be $true
         }
@@ -26,7 +26,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
     }
 
     BeforeAll {
-        $DestBackupDir = 'C:\Temp\backups'
+        $DestBackupDir = '/opt/mssql/github/backups'
         $random = Get-Random
         $DestDbRandom = "dbatools_ci_backupdbadatabase$random"
         if (-Not(Test-Path $DestBackupDir)) {
@@ -39,7 +39,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
         Get-DbaDatabase -SqlInstance $script:instance1 -Database "dbatoolsci_singlerestore" | Remove-DbaDatabase -Confirm:$false
         Get-DbaDatabase -SqlInstance $script:instance2 -Database $DestDbRandom | Remove-DbaDatabase -Confirm:$false
         if (Test-Path $DestBackupDir) {
-            Remove-Item "$DestBackupDir\*" -Force -Recurse
+            Remove-Item "$DestBackupDir$($script:instance1Sep)*" -Force -Recurse
         }
     }
     Context "Should not backup if database and exclude match" {
@@ -71,7 +71,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
             $results.Fullname | Should -BeLike "$DestBackupDir*PesterTest.bak"
         }
         It "Should have backed up to the path with the correct name" {
-            Test-Path "$DestBackupDir\PesterTest.bak" | Should -Be $true
+            Test-Path "$DestBackupDir$($script:instance1Sep)PesterTest.bak" | Should -Be $true
         }
     }
 
@@ -81,7 +81,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
             $results.Fullname | Should -BeLike "$DestBackupDir*PesterTest.bak"
         }
         It "Should have backed up to the path with the correct name" {
-            Test-Path "$DestBackupDir\PesterTest.bak" | Should -Be $true
+            Test-Path "$DestBackupDir$($script:instance1Sep)PesterTest.bak" | Should -Be $true
         }
     }
 
@@ -96,8 +96,8 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
     }
 
     Context "Handling backup paths that don't exist" {
-        $MissingPathTrailing = "$DestBackupDir\Missing1\Awol2\"
-        $MissingPath = "$DestBackupDir\Missing1\Awol2"
+        $MissingPathTrailing = "$DestBackupDir$($script:instance1Sep)Missing1$($script:instance1Sep)Awol2$($script:instance1Sep)"
+        $MissingPath = "$DestBackupDir$($script:instance1Sep)Missing1$($script:instance1Sep)Awol2"
         $null = Backup-DbaDatabase -SqlInstance $script:instance1 -Database master -BackupDirectory $MissingPath -WarningVariable warnvar *>$null
         It "Should warn and fail if path doesn't exist and BuildPath not set" {
             $warnvar | Should -BeLike "*$MissingPath*"
@@ -107,19 +107,19 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
         It "Should have backed up to $MissingPath" {
             $results.BackupFolder | Should -Be "$MissingPath"
 
-            $results.Path | Should -Not -BeLike '*\\*'
+            $results.Path | Should -Not -BeLike '*$($script:instance1Sep)$($script:instance1Sep)*'
         }
     }
 
     Context "CreateFolder switch should append the databasename to the backup path" {
         $results = Backup-DbaDatabase -SqlInstance $script:instance1 -Database master -BackupDirectory $DestBackupDir -CreateFolder
         It "Should have appended master to the backup path" {
-            $results.BackupFolder | Should -Be "$DestBackupDir\master"
+            $results.BackupFolder | Should -Be "$DestBackupDir$($script:instance1Sep)master"
         }
     }
 
     Context "CreateFolder switch should append the databasename to the backup path even when striping" {
-        $backupPaths = "$DestBackupDir\stripewithdb1", "$DestBackupDir\stripewithdb2"
+        $backupPaths = "$DestBackupDir$($script:instance1Sep)stripewithdb1", "$DestBackupDir$($script:instance1Sep)stripewithdb2"
         $results = Backup-DbaDatabase -SqlInstance $script:instance1 -Database master -BackupDirectory $backupPaths -CreateFolder
         It "Should have appended master to all backup paths" {
             foreach ($path in $results.BackupFolder) {
@@ -130,18 +130,18 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
 
 
     Context "A fully qualified path should override a backupfolder" {
-        $results = Backup-DbaDatabase -SqlInstance $script:instance1 -Database master -BackupDirectory c:\temp -BackupFileName "$DestBackupDir\PesterTest2.bak"
+        $results = Backup-DbaDatabase -SqlInstance $script:instance1 -Database master -BackupDirectory c:$($script:instance1Sep)temp -BackupFileName "$DestBackupDir$($script:instance1Sep)PesterTest2.bak"
         It "Should report backed up to $DestBackupDir" {
-            $results.FullName | Should -BeLike "$DestBackupDir\PesterTest2.bak"
-            $results.BackupFolder | Should Not Be 'c:\temp'
+            $results.FullName | Should -BeLike "$DestBackupDir$($script:instance1Sep)PesterTest2.bak"
+            $results.BackupFolder | Should Not Be 'c:$($script:instance1Sep)temp'
         }
-        It "Should have backuped up to $DestBackupDir\PesterTest2.bak" {
-            Test-Path "$DestBackupDir\PesterTest2.bak" | Should -Be $true
+        It "Should have backuped up to $DestBackupDir$($script:instance1Sep)PesterTest2.bak" {
+            Test-Path "$DestBackupDir$($script:instance1Sep)PesterTest2.bak" | Should -Be $true
         }
     }
 
     Context "Should stripe if multiple backupfolders specified" {
-        $backupPaths = "$DestBackupDir\stripe1", "$DestBackupDir\stripe2", "$DestBackupDir\stripe3"
+        $backupPaths = "$DestBackupDir$($script:instance1Sep)stripe1", "$DestBackupDir$($script:instance1Sep)stripe2", "$DestBackupDir$($script:instance1Sep)stripe3"
         $null = New-item -Path $backupPaths -ItemType Directory
 
 
@@ -188,7 +188,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
             $results.Fullname | Should -BeLike "$DefaultPath*PesterTest.bak"
         }
         It "Should have backed up to the path with the corrrect name" {
-            Test-Path "$DefaultPath\PesterTest.bak" | Should -Be $true
+            Test-DbaPath -Server $script:instance1 -Path "$DefaultPath$($script:instance1Sep)PesterTest.bak" | Should -Be $true
         }
     }
 
@@ -214,7 +214,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
     }
 
     Context "Backup can pipe to restore" {
-        $null = Restore-DbaDatabase -SqlServer $script:instance1 -Path $script:appveyorlabrepo\singlerestore\singlerestore.bak -DatabaseName "dbatoolsci_singlerestore"
+        $null = Restore-DbaDatabase -SqlServer $script:instance1 -Path $script:appveyorlabrepo$($script:instance1Sep)singlerestore$($script:instance1Sep)singlerestore.bak -DatabaseName "dbatoolsci_singlerestore"
         $results = Backup-DbaDatabase -SqlInstance $script:instance1 -BackupDirectory $DestBackupDir -Database "dbatoolsci_singlerestore" | Restore-DbaDatabase -SqlInstance $script:instance2 -DatabaseName $DestDbRandom -TrustDbBackupHistory -ReplaceDbNameInFile
         It "Should return successful restore" {
             $results.RestoreComplete | Should -Be $true
@@ -243,12 +243,12 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
     }
 
     Context "Should only output a T-SQL String if OutputScriptOnly specified" {
-        $results = Backup-DbaDatabase -SqlInstance $script:instance1 -Database master -BackupFileName c:\notexists\file.bak -OutputScriptOnly
+        $results = Backup-DbaDatabase -SqlInstance $script:instance1 -Database master -BackupFileName "$DestBackupDir$($script:instance1Sep)notexists$($script:instance1Sep)file.bak" -OutputScriptOnly
         It "Should return a string" {
             $results.GetType().ToString() | Should -Be 'System.String'
         }
-        It "Should return BACKUP DATABASE [master] TO  DISK = N'c:\notexists\file.bak' WITH NOFORMAT, NOINIT, NOSKIP, REWIND, NOUNLOAD,  STATS = 1" {
-            $results | Should -Be "BACKUP DATABASE [master] TO  DISK = N'c:\notexists\file.bak' WITH NOFORMAT, NOINIT, NOSKIP, REWIND, NOUNLOAD,  STATS = 1"
+        It "Should return BACKUP DATABASE [master] TO  DISK = N'$DestBackupDir$($script:instance1Sep)notexists$($script:instance1Sep)file.bak' WITH NOFORMAT, NOINIT, NOSKIP, REWIND, NOUNLOAD,  STATS = 1" {
+            $results | Should -Be "BACKUP DATABASE [master] TO  DISK = N'$DestBackupDir$($script:instance1Sep)notexists$($script:instance1Sep)file.bak' WITH NOFORMAT, NOINIT, NOSKIP, REWIND, NOUNLOAD,  STATS = 1"
         }
     }
 
@@ -298,9 +298,9 @@ go
     }
 
     Context "Test Backup templating" {
-        $results = Backup-DbaDatabase -SqlInstance $script:instance1 -Database master -BackupDirectory $DestBackupDir\dbname\instancename\backuptype\  -BackupFileName dbname-backuptype.bak -ReplaceInName -BuildPath
+        $results = Backup-DbaDatabase -SqlInstance $script:instance1 -Database master -BackupDirectory $DestBackupDir$($script:instance1Sep)dbname$($script:instance1Sep)instancename$($script:instance1Sep)backuptype$($script:instance1Sep)  -BackupFileName dbname-backuptype.bak -ReplaceInName -BuildPath
         It "Should have replaced the markers" {
-            $results.BackupPath | Should -BeLike "$DestBackupDir\master\$(($script:instance1).split('\')[1])\Full\master-Full.bak"
+            $results.BackupPath | Should -BeLike "$DestBackupDir$($script:instance1Sep)master$($script:instance1Sep)$(($script:instance1).split('$($script:instance1Sep)')[1])$($script:instance1Sep)Full$($script:instance1Sep)master-Full.bak"
         }
     }
 

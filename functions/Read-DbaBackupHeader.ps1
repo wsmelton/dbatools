@@ -102,7 +102,8 @@ function Read-DbaBackupHeader {
 
     begin {
         foreach ($p in $path) {
-            if ([System.IO.Path]::GetExtension($p).Length -eq 0) {
+            $TestP = Get-Item $p -ErrorAction SilentlyContinue
+            if ($TestP.PsIsContainer -eq $True) {
                 Stop-Function -Message "Path ($p) should be a file, not a folder" -Category InvalidArgument
                 return
             }
