@@ -186,7 +186,15 @@ function Format-DbaBackupInformation {
                         $_.PhysicalName = $_.PhysicalName -Replace $History.OriginalDatabase, $History.Database
                     }
                     Write-Message -Message " 1 PhysicalName = $($_.PhysicalName) " -Level Verbose
-                    $Pname = [System.Io.FileInfo]$_.PhysicalName
+                    if ($_.PhysicalName -like '/*') {
+                        #We have *nix
+                    } elseif ($_.PhysicalName -like '[A-z]:*') {
+                        #We have a windows filepath
+                    } elseif ($_.PhysicalName -like '\\*') {
+                        #UNC filepath
+                    }
+                    $extension = Split-Path $_.PhysicalName -Extension
+                    $BaseName = Split-Path $_.PhysicalName -LeafBase
                     $RestoreDir = $Pname.DirectoryName
                     if ($_.Type -eq 'D' -or $_.FileType -eq 'D') {
                         if ('' -ne $DataFileDirectory) {
@@ -206,7 +214,7 @@ function Format-DbaBackupInformation {
                         }
                     }
 
-                    $_.PhysicalName = $RestoreDir + $PathSep + $DatabaseFilePrefix + $Pname.BaseName + $DatabaseFileSuffix + $Pname.extension
+                    $_.PhysicalName = $RestoreDir + $PathSep + $DatabaseFilePrefix + $BaseName + $DatabaseFileSuffix + $extension
                     Write-Message -Message "PhysicalName = $($_.PhysicalName) " -Level Verbose
                 }
             }

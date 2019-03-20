@@ -6,13 +6,14 @@ if (Test-Path C:\temp\constants.ps1) {
     Write-Verbose "tests\constants.local.ps1 found."
     . "$PSScriptRoot\constants.local.ps1"
 } else {
-
     $password = "yourStrong(!)Password" | ConvertTo-SecureString -asPlainText -Force
+    $script:instance2cred = New-Object System.Management.Automation.PSCredential("sa", $password)
     $credential = New-Object System.Management.Automation.PSCredential("sa", $password)
     $script:instance1 = Connect-DbaInstance -sqlinstance sql1:1433 -SqlCredential $credential
     $script:instance2 = Connect-DbaInstance -sqlinstance sql2:1433 -SqlCredential $credential
     $script:instance1Sep = Get-DbaPathSep -Server $script:instance1
     $script:instance2Sep = Get-DbaPathSep -Server $script:instance2
+    $script:instance2 = "sql2:1433"
     $script:instance3 = "localhost\sql2017"
     $script:instance2_detailed = "localhost,14333\sql2016" #Just to make sure things parse a port properly
     $script:appveyorlabrepo = "/opt/mssql/github/appveyor-lab"
