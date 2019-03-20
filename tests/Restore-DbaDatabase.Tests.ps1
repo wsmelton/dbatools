@@ -17,7 +17,7 @@ Describe "$CommandName Integration Tests" -Tag "IntegrationTests" {
     # $script:instance3 to add to the 2016_2017 matrix
     #Setup variable for multiple contexts
     $OS = (Connect-SqlInstance -SqlInstance $script:instance2 -SqlCredential $script:instance2cred).HostDistribution
-    if ($OS -eq 'Windows'){
+    if ($OS -eq 'Windows') {
         $DataFolder = '$TempFolder\datafiles'
         $LogFolder = '$TempFolder\logfiles'
         $TempFolder = '$TempFolder'
@@ -627,7 +627,7 @@ Describe "$CommandName Integration Tests" -Tag "IntegrationTests" {
 
     Context "Checking we cope with a port number (#244)" {
         $DatabaseName = 'rectest'
-        $results = Restore-DbaDatabase -SqlInstance $script:instance2 -SqlCredential $script:instance2cred_detailed -Path $script:appveyorlabrepo\singlerestore\singlerestore.bak -DatabaseName $DatabaseName -DestinationFilePrefix $DatabaseName -WithReplace
+        $results = Restore-DbaDatabase -SqlInstance $script:instance2 -SqlCredential $script:instance2cred -Path $script:appveyorlabrepo\singlerestore\singlerestore.bak -DatabaseName $DatabaseName -DestinationFilePrefix $DatabaseName -WithReplace
         It "Should have restored everything successfully" {
             ($results.RestoreComplete -contains $false) | Should be $False
             (($results | measure-Object).count -gt 0) | Should be $True
