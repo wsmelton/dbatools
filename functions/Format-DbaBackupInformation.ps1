@@ -191,8 +191,9 @@ function Format-DbaBackupInformation {
                     } elseif ($_.PhysicalName -like '[A-z]:*' -or $_.PhysicalName -like '\\*') {
                         $Seperator = '\'
                     }
+                    Write-Verbose 'p - $($_.PhysicalName)'
                     $extension = (($_.PhysicalName).split('.'))[-1]
-                    $BaseName = (($_.PhysicalName).split($Seperator))[-1] -replace ".$extension", ''
+                    $BaseName = (($_.PhysicalName).split($Seperator))[-1] -replace ".$extension", ""
                     $RestoreDir = $Pname.DirectoryName
                     if ($_.Type -eq 'D' -or $_.FileType -eq 'D') {
                         if ('' -ne $DataFileDirectory) {

@@ -16,11 +16,11 @@ Describe "$CommandName Unit Tests" -Tag 'UnitTests' {
 Describe "$CommandName Integration Tests" -Tag "IntegrationTests" {
     # $script:instance3 to add to the 2016_2017 matrix
     #Setup variable for multiple contexts
-    $OS = (Connect-SqlInstance -SqlInstance $script:instance2 -SqlCredential $script:instance2cred).HostDistribution
+    $OS = (Connect-SqlInstance -SqlInstance $script:instance2 -SqlCredential $script:instance2cred).HostPlatform
     if ($OS -eq 'Windows') {
-        $DataFolder = '$TempFolder\datafiles'
-        $LogFolder = '$TempFolder\logfiles'
-        $TempFolder = '$TempFolder'
+        $TempFolder = "c:\temp"
+        $DataFolder = "$TempFolder\datafiles"
+        $LogFolder = "$TempFolder\logfiles"
     } else {
         $DataFolder = '/var/opt/mssql/data/datafiles'
         $LogFolder = '/var/opt/mssql/data/logfiles'
@@ -235,7 +235,7 @@ Describe "$CommandName Integration Tests" -Tag "IntegrationTests" {
     Clear-DbaConnectionPool
 
     Context "Properly restores an instance using ola-style backups via pipe" {
-        $results = Get-ChildItem $script:appveyorlabrepo\sql2008-backups | Restore-DbaDatabase -SqlInstance $script:instance2 -SqlCredential $script:instance2cred
+        $results = Get-ChildItem $script:appveyorlabrepo\sql2008-backups -file -recurse | Restore-DbaDatabase -SqlInstance $script:instance2 -SqlCredential $script:instance2cred
         It "Restored files count should be the right number" {
             $results.DatabaseName.Count | Should Be 28
         }
