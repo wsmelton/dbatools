@@ -187,14 +187,12 @@ function Format-DbaBackupInformation {
                     }
                     Write-Message -Message " 1 PhysicalName = $($_.PhysicalName) " -Level Verbose
                     if ($_.PhysicalName -like '/*') {
-                        #We have *nix
-                    } elseif ($_.PhysicalName -like '[A-z]:*') {
-                        #We have a windows filepath
-                    } elseif ($_.PhysicalName -like '\\*') {
-                        #UNC filepath
+                        $Seperator = '/'
+                    } elseif ($_.PhysicalName -like '[A-z]:*' -or $_.PhysicalName -like '\\*') {
+                        $Seperator = '\'
                     }
-                    $extension = Split-Path $_.PhysicalName -Extension
-                    $BaseName = Split-Path $_.PhysicalName -LeafBase
+                    $extension = (($_.PhysicalName).split('.'))[-1]
+                    $BaseName = (($_.PhysicalName).split($Seperator))[-1] -replace ".$extension", ''
                     $RestoreDir = $Pname.DirectoryName
                     if ($_.Type -eq 'D' -or $_.FileType -eq 'D') {
                         if ('' -ne $DataFileDirectory) {
