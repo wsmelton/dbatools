@@ -29,6 +29,8 @@ if (Test-Path C:\temp\constants.ps1) {
     $script:instance3 = "localhost\sql2017"
     $script:instance2_detailed = "localhost,14333\sql2016" #Just to make sure things parse a port properly
     $script:appveyorlabrepo = "C:\github\appveyor-lab"
+    $script:instance1Sep = Get-DbaPathSep -Server $script:instance1
+    $script:instance2Sep = Get-DbaPathSep -Server $script:instance2
     $instances = @($script:instance1, $script:instance2)
     $ssisserver = "localhost\sql2016"
     $script:azureblob = "https://dbatools.blob.core.windows.net/sql"
