@@ -1,71 +1,80 @@
 function Test-DbaDbOwner {
     <#
-        .SYNOPSIS
-            Checks database owners against a login to validate which databases do not match that owner.
+    .SYNOPSIS
+        Checks database owners against a login to validate which databases do not match that owner.
 
-        .DESCRIPTION
-            This function will check all databases on an instance against a SQL login to validate if that
-            login owns those databases or not. By default, the function will check against 'sa' for
-            ownership, but the user can pass a specific login if they use something else.
+    .DESCRIPTION
+        This function will check all databases on an instance against a SQL login to validate if that
+        login owns those databases or not. By default, the function will check against 'sa' for
+        ownership, but the user can pass a specific login if they use something else.
 
-            Best Practice reference: http://weblogs.sqlteam.com/dang/archive/2008/01/13/Database-Owner-Troubles.aspx
+        Best Practice reference: http://weblogs.sqlteam.com/dang/archive/2008/01/13/Database-Owner-Troubles.aspx
 
-        .PARAMETER SqlInstance
-            Specifies the SQL Server instance(s) to scan.
+    .PARAMETER SqlInstance
+        The target SQL Server instance or instances.
 
-        .PARAMETER SqlCredential
-            Login to the target instance using alternative credentials. Windows and SQL Authentication supported. Accepts credential objects (Get-Credential)
+    .PARAMETER SqlCredential
+        Login to the target instance using alternative credentials. Windows and SQL Authentication supported. Accepts credential objects (Get-Credential)
 
-        .PARAMETER Database
-            Specifies the database(s) to process. Options for this list are auto-populated from the server. If unspecified, all databases will be processed.
+    .PARAMETER Database
+        Specifies the database(s) to process. Options for this list are auto-populated from the server. If unspecified, all databases will be processed.
 
-        .PARAMETER ExcludeDatabase
-            Specifies the database(s) to exclude from processing. Options for this list are auto-populated from the server.
+    .PARAMETER ExcludeDatabase
+        Specifies the database(s) to exclude from processing. Options for this list are auto-populated from the server.
 
-        .PARAMETER TargetLogin
-            Specifies the login that you wish check for ownership. This defaults to 'sa' or the sysadmin name if sa was renamed. This must be a valid security principal which exists on the target server.
+    .PARAMETER TargetLogin
+        Specifies the login that you wish check for ownership. This defaults to 'sa' or the sysadmin name if sa was renamed. This must be a valid security principal which exists on the target server.
 
-        .PARAMETER Detailed
-            Will be deprecated in 1.0.0 release.
+    .PARAMETER Detailed
+        Will be deprecated in 1.0.0 release.
 
-        .PARAMETER EnableException
-            By default, when something goes wrong we try to catch it, interpret it and give you a friendly warning message.
-            This avoids overwhelming you with "sea of red" exceptions, but is inconvenient because it basically disables advanced scripting.
-            Using this switch turns this "nice by default" feature off and enables you to catch exceptions with your own try/catch.
+    .PARAMETER InputObject
+        Enables piped input from Get-DbaDatabase.
 
-        .NOTES
-            Tags: Database, Owner, DbOwner
-            Author: Michael Fal (@Mike_Fal), http://mikefal.net
+    .PARAMETER EnableException
+        By default, when something goes wrong we try to catch it, interpret it and give you a friendly warning message.
+        This avoids overwhelming you with "sea of red" exceptions, but is inconvenient because it basically disables advanced scripting.
+        Using this switch turns this "nice by default" feature off and enables you to catch exceptions with your own try/catch.
 
-            Website: https://dbatools.io
-            Copyright: (C) Chrissy LeMaire, clemaire@gmail.com
-            License: MIT https://opensource.org/licenses/MIT
+    .NOTES
+        Tags: Database, Owner, DbOwner
+        Author: Michael Fal (@Mike_Fal), http://mikefal.net
 
-        .LINK
-            https://dbatools.io/Test-DbaDbOwner
+        Website: https://dbatools.io
+        Copyright: (c) 2018 by dbatools, licensed under MIT
+        License: MIT https://opensource.org/licenses/MIT
 
-        .EXAMPLE
-            Test-DbaDbOwner -SqlInstance localhost
+    .LINK
+        https://dbatools.io/Test-DbaDbOwner
 
-            Returns all databases where the owner does not match 'sa'.
+    .EXAMPLE
+        PS C:\> Test-DbaDbOwner -SqlInstance localhost
 
-        .EXAMPLE
-            Test-DbaDbOwner -SqlInstance localhost -TargetLogin 'DOMAIN\account'
+        Returns all databases where the owner does not match 'sa'.
 
-            Returns all databases where the owner does not match 'DOMAIN\account'.
+    .EXAMPLE
+        PS C:\> Test-DbaDbOwner -SqlInstance localhost -TargetLogin 'DOMAIN\account'
+
+        Returns all databases where the owner does not match 'DOMAIN\account'.
+
+    .EXAMPLE
+        PS C:\> Get-DbaDatabase -SqlInstance localhost -OnlyAccessible | Test-DbaDbOwner
+
+        Gets only accessible databases and checks where the owner does not match 'sa'.
     #>
     [CmdletBinding()]
     param (
-        [parameter(Mandatory)]
+        [parameter(Position = 0)]
         [Alias("ServerInstance", "SqlServer")]
         [DbaInstanceParameter[]]$SqlInstance,
         [PSCredential]$SqlCredential,
         [Alias("Databases")]
         [object[]]$Database,
         [object[]]$ExcludeDatabase,
-        [string]$TargetLogin ,
+        [string]$TargetLogin,
         [Switch]$Detailed,
-        [Alias('Silent')]
+        [parameter(ValueFromPipeline)]
+        [Microsoft.SqlServer.Management.Smo.Database[]]$InputObject,
         [Switch]$EnableException
     )
 
@@ -73,42 +82,28 @@ function Test-DbaDbOwner {
         Test-DbaDeprecation -DeprecatedOn "1.0.0" -Parameter "Detailed"
     }
     process {
-        foreach ($instance in $SqlInstance) {
-            try {
-                Write-Message -Level Verbose -Message "Connecting to $instance."
-                $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential
-            }
-            catch {
-                Stop-Function -Message "Failure" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
-            }
+        if (-not $InputObject -and -not $Sqlinstance) {
+            Stop-Function -Message 'You must specify a $SqlInstance parameter'
+        }
+
+        if ($SqlInstance) {
+            $InputObject += Get-DbaDatabase -SqlInstance $SqlInstance -SqlCredential $SqlCredential -Database $Database -ExcludeDatabase $ExcludeDatabase
+        }
+
+        #for each database, create custom object for return set.
+        foreach ($db in $InputObject) {
+            $server = $db.Parent
 
             # dynamic sa name for orgs who have changed their sa name
             if (Test-Bound -ParameterName TargetLogin -Not) {
-                $TargetLogin = ($server.logins | Where-Object { $_.id -eq 1 }).Name
+                $TargetLogin = ($server.logins | Where-Object {
+                        $_.id -eq 1
+                    }).Name
             }
 
             #Validate login
             if (($server.Logins.Name) -notmatch [Regex]::Escape($TargetLogin)) {
                 Write-Message -Level Verbose -Message "$TargetLogin is not a login on $instance" -Target $instance
-            }
-        }
-        #use online/available dbs
-        $dbs = $server.Databases | Where-Object IsAccessible
-
-        #filter database collection based on parameters
-        if ($Database) {
-            $dbs = $dbs | Where-Object { $Database -contains $_.Name }
-        }
-
-        if ($ExcludeDatabase) {
-            $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-        }
-
-        #for each database, create custom object for return set.
-        foreach ($db in $dbs) {
-
-            if ($db.IsAccessible -eq $false) {
-                Stop-Function -Message "The database $db is not accessible. Skipping database." -Continue -Target $db
             }
 
             Write-Message -Level Verbose -Message "Checking $db"

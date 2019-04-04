@@ -1,8 +1,19 @@
 $CommandName = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
-Write-Host -Object "Running $PSCommandpath" -ForegroundColor Cyan
+Write-Host -Object "Running $PSCommandPath" -ForegroundColor Cyan
 . "$PSScriptRoot\constants.ps1"
 
-Describe "$commandname Unit Test" -Tags Unittest {
+Describe "$CommandName Unit Tests" -Tag 'UnitTests' {
+    Context "Validate parameters" {
+        [object[]]$params = (Get-Command $CommandName).Parameters.Keys | Where-Object {$_ -notin ('whatif', 'confirm')}
+        [object[]]$knownParameters = 'Build','Kb','MajorVersion','ServicePack','CumulativeUpdate','SqlInstance','SqlCredential','Update','EnableException'
+        $knownParameters += [System.Management.Automation.PSCmdlet]::CommonParameters
+        It "Should only contain our specific parameters" {
+            (@(Compare-Object -ReferenceObject ($knownParameters | Where-Object {$_}) -DifferenceObject $params).Count ) | Should Be 0
+        }
+    }
+}
+
+Describe "$CommandName Unit Test" -Tags Unittest {
     $ModuleBase = (Get-Module -Name dbatools).ModuleBase
     $idxfile = "$ModuleBase\bin\dbatools-buildref-index.json"
     Context 'Validate data in json is correct' {
@@ -50,8 +61,7 @@ Describe "$commandname Unit Test" -Tags Unittest {
                 }
                 try {
                     $splitted | Foreach-Object { [convert]::ToInt32($_) }
-                }
-                catch {
+                } catch {
                     # I know. But someone can find a method to output a custom message ?
                     $splitted -join '.' | Should Be "Composed by integers"
                 }
@@ -132,12 +142,34 @@ Describe "$commandname Unit Test" -Tags Unittest {
     }
 }
 
-Describe "$commandname Integration Tests" -Tags IntegrationTests {
+Describe "$commandname Integration Tests" -Tags 'IntegrationTests' {
     Context "Test retrieving version from instances" {
         $results = Get-DbaBuildReference -SqlInstance $script:instance1, $script:instance2
         It "Should return an exact match" {
+            $results | Should -Not -BeNullOrEmpty
             foreach ($r in $results) {
                 $r.MatchType | Should Be "Exact"
+                $buildMatch = Get-DbaBuildReference -Build $r.BuildLevel
+                $buildMatch | Should -Not -BeNullOrEmpty
+                foreach ($b in $buildMatch) {
+                    $b.MatchType | Should Be "Exact"
+                    $b.KBLevel | Should BeIn $r.KBLevel
+                }
+                $kbMatch = Get-DbaBuildReference -KB ($r.KBLevel | Select-Object -First 1)
+                $kbMatch | Should -Not -BeNullOrEmpty
+                foreach ($m in $kbMatch) {
+                    $m.MatchType | Should Be "Exact"
+                    $m.KBLevel | Should BeIn $r.KBLevel
+                }
+                $spLevel = $r.SPLevel | Where-Object { $_ -ne 'LATEST' }
+                $versionMatch = Get-DbaBuildReference -MajorVersion $r.NameLevel -ServicePack $spLevel -CumulativeUpdate $r.CULevel
+                $versionMatch | Should -Not -BeNullOrEmpty
+                foreach ($v in $versionMatch) {
+                    $v.MatchType | Should Be "Exact"
+                    $v.NameLevel | Should Be $r.NameLevel
+                    $spLevel | Should BeIn $v.SPLevel
+                    $v.CULevel | Should Be $r.CULevel
+                }
             }
         }
     }

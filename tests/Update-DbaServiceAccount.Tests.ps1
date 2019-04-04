@@ -1,9 +1,20 @@
-$commandname = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
-Write-Host -Object "Running $PSCommandpath" -ForegroundColor Cyan
+$CommandName = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
+Write-Host -Object "Running $PSCommandPath" -ForegroundColor Cyan
 . "$PSScriptRoot\constants.ps1"
 . "$PSScriptRoot\..\internal\functions\Connect-SqlInstance.ps1"
 
-Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
+Describe "$CommandName Unit Tests" -Tag 'UnitTests' {
+    Context "Validate parameters" {
+        [object[]]$params = (Get-Command $CommandName).Parameters.Keys | Where-Object {$_ -notin ('whatif', 'confirm')}
+        [object[]]$knownParameters = 'ComputerName','Credential','InputObject','ServiceName','Username','ServiceCredential','PreviousPassword','SecurePassword','EnableException'
+        $knownParameters += [System.Management.Automation.PSCmdlet]::CommonParameters
+        It "Should only contain our specific parameters" {
+            (@(Compare-Object -ReferenceObject ($knownParameters | Where-Object {$_}) -DifferenceObject $params).Count ) | Should Be 0
+        }
+    }
+}
+
+Describe "$CommandName Integration Tests" -Tags "IntegrationTests" {
 
     $login = 'winLogin'
     $password = 'MyV3ry$ecur3P@ssw0rd'
@@ -22,8 +33,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
         if ($user.Name -eq $login) {
             $computer.Delete('User', $login)
         }
-    }
-    catch {<#User does not exist#>}
+    } catch {<#User does not exist#>}
 
     if ($l = Get-DbaLogin -SqlInstance $script:instance2 -Login $winLogin) {
         $results = $server.Query("IF EXISTS (SELECT * FROM sys.server_principals WHERE name = '$winLogin') EXEC sp_who '$winLogin'")
@@ -187,7 +197,6 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
         }
 
     }
-
     #Cleanup
     $server.Logins[$winLogin].Drop()
     $computer.Delete('User', $login)

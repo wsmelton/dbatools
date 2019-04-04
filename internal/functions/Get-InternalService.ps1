@@ -43,7 +43,7 @@ function Get-InternalService {
         Get-InternalService -ComputerName "server1","server2","server3" -Name Lanman%
 
         Scans the servers server1, server2 and server3 for all services whose name starts with 'lanman'
-#>
+    #>
     [CmdletBinding()]
     param (
         [string[]]
@@ -82,12 +82,10 @@ function Get-InternalService {
                 try {
                     if (Test-Bound "Credential") { Get-DbaCmObject -Query "SELECT * FROM Win32_Service WHERE Name LIKE '$serviceName'" -ComputerName $computer.ComputerName -Credential $Credential -EnableException -DoNotUse $DoNotUse }
                     else { Get-DbaCmObject -Query "SELECT * FROM Win32_Service WHERE Name LIKE '$serviceName'" -ComputerName $computer.ComputerName -EnableException -DoNotUse $DoNotUse }
-                }
-                catch {
+                } catch {
                     if ($_.CategoryInfo.Category -eq "OpenError") {
                         Stop-Function -Message "Failed to access computer $($computer.ComputerName)" -ErrorRecord $_ -Target $computer.ComputerName -Continue -ContinueLabel main
-                    }
-                    else {
+                    } else {
                         Stop-Function -Message "Failed to retrieve service" -ErrorRecord $_ -Target $computer.ComputerName -Continue
                     }
                 }
@@ -98,12 +96,10 @@ function Get-InternalService {
                 try {
                     if (Test-Bound "Credential") { Get-DbaCmObject -Query "SELECT * FROM Win32_Service WHERE DisplayName LIKE '$serviceDisplayName'" -ComputerName $computer.ComputerName -Credential $Credential -EnableException -DoNotUse $DoNotUse }
                     else { Get-DbaCmObject -Query "SELECT * FROM Win32_Service WHERE DisplayName LIKE '$serviceDisplayName'" -ComputerName $computer.ComputerName -EnableException -DoNotUse $DoNotUse }
-                }
-                catch {
+                } catch {
                     if ($_.CategoryInfo.Category -eq "OpenError") {
                         Stop-Function -Message "Failed to access computer $($computer.ComputerName)" -ErrorRecord $_ -Target $computer.ComputerName -Continue -ContinueLabel main
-                    }
-                    else {
+                    } else {
                         Stop-Function -Message "Failed to retrieve service" -ErrorRecord $_ -Target $computer.ComputerName -Continue
                     }
                 }

@@ -1,79 +1,88 @@
+#ValidationTags#CodeStyle,Messaging,FlowControl,Pipeline#
 function Get-DbaDbSpace {
     <#
-        .SYNOPSIS
-            Returns database file space information for database files on a SQL instance.
+    .SYNOPSIS
+        Returns database file space information for database files on a SQL instance.
 
-        .DESCRIPTION
-            This function returns database file space information for a SQL Instance or group of SQL Instances. Information is based on a query against sys.database_files and the FILEPROPERTY function to query and return information.
+    .DESCRIPTION
+        This function returns database file space information for a SQL Instance or group of SQL Instances. Information is based on a query against sys.database_files and the FILEPROPERTY function to query and return information.
 
-            File free space script borrowed and modified from Glenn Berry's DMV scripts (http://www.sqlskills.com/blogs/glenn/category/dmv-queries/)
+        File free space script borrowed and modified from Glenn Berry's DMV scripts (http://www.sqlskills.com/blogs/glenn/category/dmv-queries/)
 
-        .PARAMETER SqlInstance
-            Specifies the SQL Server instance(s) to scan.
+    .PARAMETER SqlInstance
+        The target SQL Server instance or instances.
 
-        .PARAMETER SqlCredential
-            Login to the target instance using alternative credentials. Windows and SQL Authentication supported. Accepts credential objects (Get-Credential)
+    .PARAMETER SqlCredential
+        Login to the target instance using alternative credentials. Windows and SQL Authentication supported. Accepts credential objects (Get-Credential)
 
-        .PARAMETER Database
-            Specifies the database(s) to process. Options for this list are auto-populated from the server. If unspecified, all databases will be processed.
+    .PARAMETER Database
+        Specifies the database(s) to process. Options for this list are auto-populated from the server. If unspecified, all databases will be processed.
 
-        .PARAMETER ExcludeDatabase
-            Specifies the database(s) to exclude from processing. Options for this list are auto-populated from the server.
+    .PARAMETER ExcludeDatabase
+        Specifies the database(s) to exclude from processing. Options for this list are auto-populated from the server.
 
-        .PARAMETER IncludeSystemDBs
-            If this switch is enabled, system databases will be processed. By default, only user databases are processed.
+    .PARAMETER InputObject
+        A piped collection of database objects from Get-DbaDatabase
 
-        .PARAMETER EnableException
-            By default, when something goes wrong we try to catch it, interpret it and give you a friendly warning message.
-            This avoids overwhelming you with "sea of red" exceptions, but is inconvenient because it basically disables advanced scripting.
-            Using this switch turns this "nice by default" feature off and enables you to catch exceptions with your own try/catch.
+    .PARAMETER IncludeSystemDBs
+        Deprecated - if filtering is needed, please pipe filtered results from Get-DbaDatabase
 
-        .NOTES
-            Tags: Database, Space, Storage
-            Author: Michael Fal (@Mike_Fal), http://mikefal.net
-            Website: https://dbatools.io
-            Copyright: (C) Chrissy LeMaire, clemaire@gmail.com
-            License: MIT https://opensource.org/licenses/MIT
+    .PARAMETER EnableException
+        By default, when something goes wrong we try to catch it, interpret it and give you a friendly warning message.
+        This avoids overwhelming you with "sea of red" exceptions, but is inconvenient because it basically disables advanced scripting.
+        Using this switch turns this "nice by default" feature off and enables you to catch exceptions with your own try/catch.
 
-        .LINK
-            https://dbatools.io/Get-DbaDbSpace
+    .NOTES
+        Tags: Database, Space, Storage
+        Author: Michael Fal (@Mike_Fal), http://mikefal.net
 
-        .EXAMPLE
-            Get-DbaDbSpace -SqlInstance localhost
+        Website: https://dbatools.io
+        Copyright: (c) 2018 by dbatools, licensed under MIT
+        License: MIT https://opensource.org/licenses/MIT
 
-            Returns all user database files and free space information for the localhost.
+    .LINK
+        https://dbatools.io/Get-DbaDbSpace
 
-        .EXAMPLE
-            Get-DbaDbSpace -SqlInstance localhost | Where-Object {$_.PercentUsed -gt 80}
+    .EXAMPLE
+        PS C:\> Get-DbaDbSpace -SqlInstance localhost
 
-            Returns all user database files and free space information for the local host. Filters the output object by any files that have a percent used of greater than 80%.
+        Returns all user database files and free space information for the localhost.
 
-        .EXAMPLE
-            'localhost','localhost\namedinstance' | Get-DbaDbSpace
+    .EXAMPLE
+        PS C:\> Get-DbaDbSpace -SqlInstance localhost | Where-Object {$_.PercentUsed -gt 80}
 
-            Returns all user database files and free space information for the localhost and localhost\namedinstance SQL Server instances. Processes data via the pipeline.
+        Returns all user database files and free space information for the local host. Filters the output object by any files that have a percent used of greater than 80%.
 
-        .EXAMPLE
-            Get-DbaDbSpace -SqlInstance localhost -Database db1, db2
+    .EXAMPLE
+        PS C:\> 'localhost','localhost\namedinstance' | Get-DbaDbSpace
 
-            Returns database files and free space information for the db1 and db2 on localhost.
+        Returns all user database files and free space information for the localhost and localhost\namedinstance SQL Server instances. Processes data via the pipeline.
+
+    .EXAMPLE
+        PS C:\> Get-DbaDbSpace -SqlInstance localhost -Database db1, db2 | Where-Object { $_.SpaceUntilMaxSize.Megabyte -lt 1 }
+
+        Returns database files and free space information for the db1 and db2 on localhost where there is only 1MB left until the space is maxed out
+
+    .EXAMPLE
+        PS C:\> Get-DbaDbSpace -SqlInstance localhost -Database db1, db2 | Where-Object { $_.SpaceUntilMaxSize.Gigabyte -lt 1 }
+
+        Returns database files and free space information for the db1 and db2 on localhost where there is only 1GB left until the space is maxed out
+
     #>
     [CmdletBinding()]
-    param ([parameter(ValueFromPipeline, Mandatory)]
+    param ([parameter(ValueFromPipeline)]
         [Alias("ServerInstance", "SqlServer")]
         [DbaInstanceParameter[]]$SqlInstance,
-        [System.Management.Automation.PSCredential]$SqlCredential,
+        [PSCredential]$SqlCredential,
         [Alias("Databases")]
-        [object[]]$Database,
-        [object[]]$ExcludeDatabase,
+        [string[]]$Database,
+        [string[]]$ExcludeDatabase,
         [switch]$IncludeSystemDBs,
-        [Alias('Silent')]
+        [parameter(ValueFromPipeline)]
+        [Microsoft.SqlServer.Management.Smo.Database[]]$InputObject,
         [switch]$EnableException
     )
-
     begin {
-        Write-Message -Level System -Message "Bound parameters: $($PSBoundParameters.Keys -join ", ")."
-
         $sql = "SELECT SERVERPROPERTY('MachineName') AS ComputerName,
                                    ISNULL(SERVERPROPERTY('InstanceName'), 'MSSQLSERVER') AS InstanceName,
                                    SERVERPROPERTY('ServerName') AS SqlInstance,
@@ -127,111 +136,82 @@ function Get-DbaDbSpace {
     }
 
     process {
-        foreach ($instance in $SqlInstance) {
-            try {
-                Write-Message -Level VeryVerbose -Message "Connecting to $instance." -Target $instance
-                $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $SqlCredential
-            }
-            catch {
-                Stop-Function -Message "Failed to process Instance $Instance." -ErrorRecord $_ -Target $instance -Continue
-            }
+        if ($IncludeSystemDBs) {
+            Stop-Function -Message "IncludeSystemDBs will be removed. Please pipe in filtered results from Get-DbaDatabase instead."
+            return
+        }
+        if ($SqlInstance) {
+            $InputObject += Get-DbaDatabase -SqlInstance $SqlInstance -SqlCredential $SqlCredential -Database $Database -ExcludeDatabase $ExcludeDatabase
+        }
 
+        foreach ($db in $InputObject) {
+            $server = $db.Parent
             if ($server.VersionMajor -lt 9) {
-                Write-Message -Level Warning -Message "SQL Server 2000 not supported. $server skipped."
-                continue
+                Stop-Function -Message "SQL Server 2000 not supported. $server skipped." -Continue
             }
 
-            #If IncludeSystemDBs is true, include systemdbs
-            #look at all databases, online/offline/accessible/inaccessible and tell user if a db can't be queried.
             try {
-                if (Test-Bound "Database") {
-                    $dbs = $server.Databases | Where-Object Name -In $Database
+                Write-Message -Level Verbose -Message "Querying $instance - $db."
+                If ($db.status -ne 'Normal' -or $db.IsAccessible -eq $false) {
+                    Write-Message -Level Warning -Message "$db is not accessible." -Target $db
+                    continue
                 }
-                elseif ($IncludeSystemDBs) {
-                    $dbs = $server.Databases | Where-Object IsAccessible
-                }
-                else {
-                    $dbs = $server.Databases | Where-Object { $_.IsAccessible -and $_.IsSystemObject -eq 0 }
-                }
-
-                if (Test-Bound "ExcludeDatabase") {
-                    $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-                }
-            }
-            catch {
-                Stop-Function -Message "Unable to gather databases for $instance." -ErrorRecord $_ -Continue
-            }
-
-            foreach ($db in $dbs) {
-                try {
-                    Write-Message -Level Verbose -Message "Querying $instance - $db."
-                    If ($db.status -ne 'Normal' -or $db.IsAccessible -eq $false) {
-                        Write-Message -Level Warning -Message "$db is not accessible." -Target $db
-                        continue
+                #Execute query against individual database and add to output
+                foreach ($row in ($db.ExecuteWithResults($sql)).Tables.Rows) {
+                    if ($row.UsedSpaceMB -is [System.DBNull]) {
+                        $UsedMB = 0
+                    } else {
+                        $UsedMB = [Math]::Round($row.UsedSpaceMB)
                     }
-                    #Execute query against individual database and add to output
-                    foreach ($row in ($db.ExecuteWithResults($sql)).Tables.Rows) {
-                        if ($row.UsedSpaceMB -is [System.DBNull]) {
-                            $UsedMB = 0
-                        }
-                        else {
-                            $UsedMB = [Math]::Round($row.UsedSpaceMB)
-                        }
-                        if ($row.FreeSpaceMB -is [System.DBNull]) {
-                            $FreeMB = 0
-                        }
-                        else {
-                            $FreeMB = [Math]::Round($row.FreeSpaceMB)
-                        }
-                        if ($row.PercentUsed -is [System.DBNull]) {
-                            $PercentUsed = 0
-                        }
-                        else {
-                            $PercentUsed = [Math]::Round($row.PercentUsed)
-                        }
-                        if ($row.SpaceBeforeMax -is [System.DBNull]) {
-                            $SpaceUntilMax = 0
-                        }
-                        else {
-                            $SpaceUntilMax = [Math]::Round($row.SpaceBeforeMax)
-                        }
-                        if ($row.UnusableSpaceMB -is [System.DBNull]) {
-                            $UnusableSpace = 0
-                        }
-                        else {
-                            $UnusableSpace = [Math]::Round($row.UnusableSpaceMB)
-                        }
+                    if ($row.FreeSpaceMB -is [System.DBNull]) {
+                        $FreeMB = 0
+                    } else {
+                        $FreeMB = [Math]::Round($row.FreeSpaceMB)
+                    }
+                    if ($row.PercentUsed -is [System.DBNull]) {
+                        $PercentUsed = 0
+                    } else {
+                        $PercentUsed = [Math]::Round($row.PercentUsed)
+                    }
+                    if ($row.SpaceBeforeMax -is [System.DBNull]) {
+                        $SpaceUntilMax = 0
+                    } else {
+                        $SpaceUntilMax = [Math]::Round($row.SpaceBeforeMax)
+                    }
+                    if ($row.UnusableSpaceMB -is [System.DBNull]) {
+                        $UnusableSpace = 0
+                    } else {
+                        $UnusableSpace = [Math]::Round($row.UnusableSpaceMB)
+                    }
 
-                        [pscustomobject]@{
-                            ComputerName         = $server.ComputerName
-                            InstanceName         = $server.ServiceName
-                            SqlInstance          = $server.DomainInstanceName
-                            Database             = $row.DBName
-                            FileName             = $row.FileName
-                            FileGroup            = $row.FileGroup
-                            PhysicalName         = $row.PhysicalName
-                            FileType             = $row.FileType
-                            UsedSpaceMB          = $UsedMB
-                            FreeSpaceMB          = $FreeMB
-                            FileSizeMB           = $row.FileSizeMB
-                            PercentUsed          = $PercentUsed
-                            AutoGrowth           = $row.GrowthMB
-                            AutoGrowType         = $row.GrowthType
-                            SpaceUntilMaxSizeMB  = $SpaceUntilMax
-                            AutoGrowthPossibleMB = $row.PossibleAutoGrowthMB
-                            UnusableSpaceMB      = $UnusableSpace
-                        }
+                    [pscustomobject]@{
+                        ComputerName       = $server.ComputerName
+                        InstanceName       = $server.ServiceName
+                        SqlInstance        = $server.DomainInstanceName
+                        Database           = $row.DBName
+                        FileName           = $row.FileName
+                        FileGroup          = $row.FileGroup
+                        PhysicalName       = $row.PhysicalName
+                        FileType           = $row.FileType
+                        UsedSpace          = [dbasize]($UsedMB * 1024 * 1024)
+                        FreeSpace          = [dbasize]($FreeMB * 1024 * 1024)
+                        FileSize           = [dbasize]($row.FileSizeMB * 1024 * 1024)
+                        PercentUsed        = $PercentUsed
+                        AutoGrowth         = [dbasize]($row.GrowthMB * 1024 * 1024)
+                        AutoGrowType       = $row.GrowthType
+                        SpaceUntilMaxSize  = [dbasize]($SpaceUntilMax * 1024 * 1024)
+                        AutoGrowthPossible = [dbasize]($row.PossibleAutoGrowthMB * 1024 * 1024)
+                        UnusableSpace      = [dbasize]($UnusableSpace * 1024 * 1024)
                     }
                 }
-                catch {
-                    Stop-Function -Message "Unable to query $instance - $db." -Target $db -ErrorRecord $_ -Continue
-                }
+            } catch {
+                Stop-Function -Message "Unable to query $instance - $db." -Target $db -ErrorRecord $_ -Continue
             }
         }
     }
     end {
         Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-DbaDatabaseFreeSpace
         Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-DbaDatabaseSpace
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Parameter IncludeSystemDBs
     }
 }
-

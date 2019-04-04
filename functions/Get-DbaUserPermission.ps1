@@ -4,14 +4,14 @@ function Get-DbaUserPermission {
         Displays detailed permissions information for the server and database roles and securables.
 
     .DESCRIPTION
-        This command will display all server logins, server level securable, database logins and database securables.
+        This command will display all server logins, server level securables, database logins and database securables.
 
         DISA STIG implementators will find this command useful as it uses Permissions.sql provided by DISA.
 
         Note that if you Ctrl-C out of this command and end it prematurely, it will leave behind a STIG schema in tempdb.
 
     .PARAMETER SqlInstance
-        Allows you to specify a comma separated list of servers to query.
+        The target SQL Server instance or instances.
 
     .PARAMETER SqlCredential
         Login to the target instance using alternative credentials. Windows and SQL Authentication supported. Accepts credential objects (Get-Credential)
@@ -37,31 +37,35 @@ function Get-DbaUserPermission {
         Using this switch turns this "nice by default" feature off and enables you to catch exceptions with your own try/catch.
 
     .NOTES
-    Tags: Discovery, Permissions, Security
-    Author: Brandon Abshire, netnerds.net
+        Tags: Discovery, Permissions, Security
+        Author: Brandon Abshire, netnerds.net
 
         Website: https://dbatools.io
-        Copyright: (C) Chrissy LeMaire, clemaire@gmail.com
+        Copyright: (c) 2018 by dbatools, licensed under MIT
         License: MIT https://opensource.org/licenses/MIT
 
     .LINK
         https://dbatools.io/Get-DbaUserPermission
 
     .EXAMPLE
-        Get-DbaUserPermission -SqlInstance sql2008, sqlserver2012
+        PS C:\> Get-DbaUserPermission -SqlInstance sql2008, sqlserver2012
+
         Check server and database permissions for servers sql2008 and sqlserver2012.
 
     .EXAMPLE
-        Get-DbaUserPermission -SqlInstance sql2008 -Database TestDB
+        PS C:\> Get-DbaUserPermission -SqlInstance sql2008 -Database TestDB
+
         Check server and database permissions on server sql2008 for only the TestDB database
 
     .EXAMPLE
-        Get-DbaUserPermission -SqlInstance sql2008 -Database TestDB -IncludePublicGuest -IncludeSystemObjects
+        PS C:\> Get-DbaUserPermission -SqlInstance sql2008 -Database TestDB -IncludePublicGuest -IncludeSystemObjects
+
         Check server and database permissions on server sql2008 for only the TestDB database,
         including public and guest grants, and sys schema objects.
+
     #>
     [CmdletBinding()]
-    Param (
+    param (
         [parameter(Position = 0, Mandatory, ValueFromPipeline)]
         [Alias("ServerInstance", "SqlServer", "SqlServers")]
         [DbaInstanceParameter[]]$SqlInstance,
@@ -69,7 +73,7 @@ function Get-DbaUserPermission {
         [Alias("Databases")]
         [object[]]$Database,
         [object[]]$ExcludeDatabase,
-        [parameter(Position = 1, Mandatory = $false)]
+        [parameter(Position = 1)]
         [switch]$ExcludeSystemDatabase,
         [switch]$IncludePublicGuest,
         [switch]$IncludeSystemObjects,
@@ -78,9 +82,6 @@ function Get-DbaUserPermission {
     )
 
     begin {
-
-        $sql = [System.IO.File]::ReadAllText("$script:PSModuleRoot\bin\stig.sql")
-
         $endSQL = "	   BEGIN TRY DROP FUNCTION STIG.server_effective_permissions END TRY BEGIN CATCH END CATCH;
                        GO
                        BEGIN TRY DROP VIEW STIG.server_permissions END TRY BEGIN CATCH END CATCH;
@@ -107,7 +108,7 @@ function Get-DbaUserPermission {
 
         $serverSQL = "SELECT  'SERVER LOGINS' AS Type ,
                                     sl.name AS Member ,
-                                    ISNULL(srm.role, 'None') AS [Role/Securable/Class] ,
+                                    ISNULL(srm.Role, 'None') AS [Role/Securable/Class] ,
                                     ' ' AS [Schema/Owner] ,
                                     ' ' AS [Securable] ,
                                     ' ' AS [Grantee Type] ,
@@ -118,7 +119,7 @@ function Get-DbaUserPermission {
                                     ' ' AS [Grantor Type] ,
                                     ' ' AS [Source View]
                             FROM    master.sys.syslogins sl
-                                    LEFT JOIN tempdb.[STIG].[server_role_members] srm ON sl.name = srm.member
+                                    LEFT JOIN tempdb.[STIG].[server_role_members] srm ON sl.name = srm.Member
                             WHERE   sl.name NOT LIKE 'NT %'
                                     AND sl.name NOT LIKE '##%'
                             UNION
@@ -141,7 +142,7 @@ function Get-DbaUserPermission {
 
         $dbSQL = "SELECT  'DB ROLE MEMBERS' AS type ,
                                 Member ,
-                                Role ,
+                                ISNULL(Role, 'None') AS [Role/Securable/Class],
                                 ' ' AS [Schema/Owner] ,
                                 ' ' AS [Securable] ,
                                 ' ' AS [Grantee Type] ,
@@ -155,7 +156,7 @@ function Get-DbaUserPermission {
                         UNION
                         SELECT DISTINCT
                                 'DB SECURABLES' AS Type ,
-                                drm.member ,
+                                ISNULL(drm.member, 'None') AS [Role/Securable/Class] ,
                                 dp.[Securable Type or Class] COLLATE SQL_Latin1_General_CP1_CI_AS ,
                                 dp.[Schema/Owner] ,
                                 dp.Securable ,
@@ -167,8 +168,8 @@ function Get-DbaUserPermission {
                                 dp.[Grantor Type] COLLATE SQL_Latin1_General_CP1_CI_AS ,
                                 dp.[Source View]
                         FROM    tempdb.[STIG].[database_role_members] drm
-                                LEFT JOIN tempdb.[STIG].[database_permissions] dp ON ( drm.member = dp.grantee
-                                                                                      OR drm.role = dp.grantee
+                                LEFT JOIN tempdb.[STIG].[database_permissions] dp ON ( drm.Member = dp.Grantee
+                                                                                      OR drm.Role = dp.Grantee
                                                                                      )
                         WHERE	dp.Grantor IS NOT NULL
                                 AND [Schema/Owner] <> 'sys'"
@@ -180,16 +181,15 @@ function Get-DbaUserPermission {
 
     process {
         foreach ($instance in $SqlInstance) {
-            Write-Message -Level Verbose -Message "Connecting to $instance"
 
             try {
                 $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $SqlCredential -MinimumVersion 10
-            }
-            catch {
-                Stop-Function -Message "Failure" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
+            } catch {
+                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
             }
 
             $dbs = $server.Databases
+            $tempdb = $server.Databases['tempdb']
 
             if ($Database) {
                 $dbs = $dbs | Where-Object { $Database -contains $_.Name }
@@ -209,21 +209,34 @@ function Get-DbaUserPermission {
             foreach ($db in $dbs) {
                 Write-Message -Level Verbose -Message "Processing $db on $instance"
 
+                $db.ExecuteNonQuery($endSQL)
+
                 if ($db.IsAccessible -eq $false) {
                     Stop-Function -Message "The database $db is not accessible" -Continue
                 }
 
+                $sql = [System.IO.File]::ReadAllText("$script:PSModuleRoot\bin\stig.sql")
                 $sql = $sql.Replace("<TARGETDB>", $db.Name)
 
                 #Create objects in active database
                 Write-Message -Level Verbose -Message "Creating objects"
-                try { $db.ExecuteNonQuery($sql) } catch {} # sometimes it complains about not being able to drop the stig schema if the person Ctrl-C'd before.
+                try {
+                    $db.ExecuteNonQuery($sql)
+                } catch {
+                    # here to avoid an empty catch
+                    $null = 1
+                } # sometimes it complains about not being able to drop the stig schema if the person Ctrl-C'd before.
 
                 #Grab permissions data
                 if (-not $serverDT) {
                     Write-Message -Level Verbose -Message "Building data table for server objects"
 
-                    try { $serverDT = $db.Query($serverSQL) } catch { }
+                    try {
+                        $serverDT = $db.Query($serverSQL)
+                    } catch {
+                        # here to avoid an empty catch
+                        $null = 1
+                    }
 
                     foreach ($row in $serverDT) {
                         [PSCustomObject]@{
@@ -248,7 +261,12 @@ function Get-DbaUserPermission {
                 }
 
                 Write-Message -Level Verbose -Message "Building data table for $db objects"
-                try { $dbDT = $db.Query($dbSQL) } catch { }
+                try {
+                    $dbDT = $db.Query($dbSQL)
+                } catch {
+                    # here to avoid an empty catch
+                    $null = 1
+                }
 
                 foreach ($row in $dbDT) {
                     [PSCustomObject]@{
@@ -273,9 +291,12 @@ function Get-DbaUserPermission {
 
                 #Delete objects
                 Write-Message -Level Verbose -Message "Deleting objects"
-                try { $db.ExecuteNonQuery($endSQL) } catch { }
-                $sql = $sql.Replace($db.Name, "<TARGETDB>")
-
+                try {
+                    $tempdb.ExecuteNonQuery($endSQL)
+                } catch {
+                    # here to avoid an empty catch
+                    $null = 1
+                }
                 #Sashay Away
             }
         }

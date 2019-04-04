@@ -1,6 +1,18 @@
-﻿$commandname = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
-Write-Host -Object "Running $PSCommandpath" -ForegroundColor Cyan
+$CommandName = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
+Write-Host -Object "Running $PSCommandPath" -ForegroundColor Cyan
 . "$PSScriptRoot\constants.ps1"
+
+Describe "$CommandName Unit Tests" -Tag 'UnitTests' {
+    Context "Validate parameters" {
+        [object[]]$params = (Get-Command $CommandName).Parameters.Keys | Where-Object {$_ -notin ('whatif', 'confirm')}
+        [object[]]$knownParameters = 'Source','SourceSqlCredential','Destination','DestinationSqlCredential','Assembly','ExcludeAssembly','Force','EnableException'
+        $knownParameters += [System.Management.Automation.PSCmdlet]::CommonParameters
+        It "Should only contain our specific parameters" {
+            (@(Compare-Object -ReferenceObject ($knownParameters | Where-Object {$_}) -DifferenceObject $params).Count ) | Should Be 0
+        }
+    }
+}
+
 Describe "$commandname Integration Tests" -Tag "IntegrationTests" {
     BeforeAll {
         Get-DbaProcess -SqlInstance $script:instance2, $script:instance3 -Program 'dbatools PowerShell module - dbatools.io' | Stop-DbaProcess -WarningAction SilentlyContinue
@@ -19,19 +31,19 @@ Describe "$commandname Integration Tests" -Tag "IntegrationTests" {
     AfterAll {
         Get-Dbadatabase -SqlInstance $script:instance2, $script:instance3 -Database dbclrassembly | Remove-DbaDatabase -Confirm:$false
     }
-    
+
     It "copies the sample database assembly" {
         $results = Copy-DbaDbAssembly -Source $script:instance2 -Destination $script:instance3 -Assembly resolveDNS
         $results.Name -eq "60000:'us_english'", "60000:'Français'"
         $results.Status -eq 'Successful', 'Successful'
     }
-    
+
     It "doesn't overwrite existing custom errors" {
         $results = Copy-DbaCustomError -Source $script:instance2 -Destination $script:instance3 -CustomError 60000
         $results.Name -eq "60000:'us_english'", "60000:'Français'"
         $results.Status -eq 'Skipped', 'Skipped'
     }
-    
+
     It "the newly copied custom error exists" {
         $results = Get-DbaCustomError -SqlInstance $script:instance2
         $results.ID -contains 60000

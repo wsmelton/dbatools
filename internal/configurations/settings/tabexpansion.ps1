@@ -1,4 +1,4 @@
-﻿# Sets the default interval and timeout for TEPP updates
+# Sets the default interval and timeout for TEPP updates
 Set-DbatoolsConfig -FullName 'TabExpansion.UpdateInterval' -Value (New-TimeSpan -Minutes 3) -Initialize -Validation timespan -Handler { [Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::TeppUpdateInterval = $args[0] } -Description 'The frequency in which TEPP tries to update each cache for autocompletion'
 Set-DbatoolsConfig -FullName 'TabExpansion.UpdateTimeout' -Value (New-TimeSpan -Seconds 30) -Initialize -Validation timespan -Handler { [Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::TeppUpdateTimeout = $args[0] } -Description 'After this timespan has passed without connections to a server, the TEPP updater will no longer update the cache.'
 
@@ -9,8 +9,7 @@ Set-DbatoolsConfig -FullName 'TabExpansion.Disable' -Value $false -Initialize -V
     # Disable Async TEPP runspace if not needed
     if ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::TeppAsyncDisabled -or [Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::TeppDisabled) {
         [Sqlcollaborative.Dbatools.Runspace.RunspaceHost]::Runspaces["dbatools-teppasynccache"].Stop()
-    }
-    else {
+    } else {
         [Sqlcollaborative.Dbatools.Runspace.RunspaceHost]::Runspaces["dbatools-teppasynccache"].Start()
     }
 } -Description 'Globally disables all TEPP functionality by dbatools'
@@ -20,8 +19,7 @@ Set-DbatoolsConfig -FullName 'TabExpansion.Disable.Asynchronous' -Value $false -
     # Disable Async TEPP runspace if not needed
     if ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::TeppAsyncDisabled -or [Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::TeppDisabled) {
         [Sqlcollaborative.Dbatools.Runspace.RunspaceHost]::Runspaces["dbatools-teppasynccache"].Stop()
-    }
-    else {
+    } else {
         [Sqlcollaborative.Dbatools.Runspace.RunspaceHost]::Runspaces["dbatools-teppasynccache"].Start()
     }
 } -Description 'Globally disables asynchronous TEPP updates in the background'

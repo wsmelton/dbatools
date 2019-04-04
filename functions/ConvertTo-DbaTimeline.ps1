@@ -1,63 +1,72 @@
 function ConvertTo-DbaTimeline {
     <#
-        .SYNOPSIS
-            Converts InputObject to a html timeline using Google Chart
+    .SYNOPSIS
+        Converts InputObject to a html timeline using Google Chart
 
-        .DESCRIPTION
-            This function accepts input as pipeline from the following psdbatools functions:
-                Get-DbaAgentJobHistory
-                Get-DbaBackupHistory
-                (more to come...)
-            And generates Bootstrap based, HTML file with Google Chart Timeline
+    .DESCRIPTION
+        This function accepts input as pipeline from the following dbatools functions:
+        Get-DbaAgentJobHistory
+        Get-DbaBackupHistory
+        (more to come...)
+        And generates Bootstrap based, HTML file with Google Chart Timeline
 
-        .PARAMETER InputObject
+    .PARAMETER InputObject
 
-            Pipe input, must an output from the above functions.
+        Pipe input, must an output from the above functions.
 
-        .PARAMETER EnableException
-            By default, when something goes wrong we try to catch it, interpret it and give you a friendly warning message.
-            This avoids overwhelming you with "sea of red" exceptions, but is inconvenient because it basically disables advanced scripting.
-            Using this switch turns this "nice by default" feature off and enables you to catch exceptions with your own try/catch.
+    .PARAMETER ExcludeRowLabel
+        By default, the Timeline shows SqlInstance and item name (agent job or database) in row labels section of the chart.
+        When this parameter (ExcludeRowLabel) is set to true the row labels will not be shown which will maximise the chart area for better visualisation.
+        All relevant details are still available in the tooltip.
 
-        .NOTES
-            Tags: Chart
-            Author: Marcin Gminski (@marcingminski)
-            Dependency: ConvertTo-JsDate, Convert-DbaTimelineStatusColor
+    .PARAMETER EnableException
+        By default, when something goes wrong we try to catch it, interpret it and give you a friendly warning message.
+        This avoids overwhelming you with "sea of red" exceptions, but is inconvenient because it basically disables advanced scripting.
+        Using this switch turns this "nice by default" feature off and enables you to catch exceptions with your own try/catch.
 
-            Website: https://dbatools.io
-            Copyright: (C) Chrissy LeMaire, clemaire@gmail.com
--           License: MIT https://opensource.org/licenses/MIT
+    .NOTES
+        Tags: Chart
+        Author: Marcin Gminski (@marcingminski)
 
-        .LINK
-            https://dbatools.io/ConvertTo-DbaTimeline
+        Website: https://dbatools.io
+        Copyright: (c) 2018 by dbatools, licensed under MIT
+        License: MIT https://opensource.org/licenses/MIT
 
-        .EXAMPLE
-            Get-DbaAgentJobHistory -SqlInstance sql-1 -StartDate '2018-08-13 00:00' -EndDate '2018-08-13 23:59' -NoJobSteps | ConvertTo-DbaTimeline | Out-File C:\temp\DbaAgentJobHistory.html -Encoding ASCII
+        Dependency: ConvertTo-JsDate, Convert-DbaTimelineStatusColor
 
-            Creates an output file containing a pretty timeline for all of the agent job history results for sql-1 the whole day of 2018-08-13
+    .LINK
+        https://dbatools.io/ConvertTo-DbaTimeline
 
-        .EXAMPLE
-            Get-DbaRegisteredServer -SqlInstance sqlcm | Get-DbaBackupHistory -Since '2018-08-13 00:00' | ConvertTo-DbaTimeline | Out-File C:\temp\DbaBackupHistory.html -Encoding ASCII
+    .EXAMPLE
+        PS C:\> Get-DbaAgentJobHistory -SqlInstance sql-1 -StartDate '2018-08-13 00:00' -EndDate '2018-08-13 23:59' -ExcludeJobSteps | ConvertTo-DbaTimeline | Out-File C:\temp\DbaAgentJobHistory.html -Encoding ASCII
 
-            Creates an output file containing a pretty timeline for the agent job history since 2018-08-13 for all of the registered servers on sqlcm
+        Creates an output file containing a pretty timeline for all of the agent job history results for sql-1 the whole day of 2018-08-13
 
-        .EXAMPLE
-            $messageParameters = @{
-                Subject = "Backup history for sql2017 and sql2016"
-                Body = Get-DbaBackupHistory -SqlInstance sql2017, sql2016 -Since '2018-08-13 00:00' | ConvertTo-DbaTimeline
-                From = "dba@ad.local"
-                To = "dba@ad.local"
-                SmtpServer = "smtp.ad.local"
-            }
-            Send-MailMessage @messageParameters -BodyAsHtml
+    .EXAMPLE
+        PS C:\> Get-DbaCmsRegServer -SqlInstance sqlcm | Get-DbaBackupHistory -Since '2018-08-13 00:00' | ConvertTo-DbaTimeline | Out-File C:\temp\DbaBackupHistory.html -Encoding ASCII
 
-            Sends an email to dba@ad.local with the results of Get-DbaBackupHistory. Note that viewing these reports may not be supported in all email clients.
+        Creates an output file containing a pretty timeline for the agent job history since 2018-08-13 for all of the registered servers on sqlcm
+
+    .EXAMPLE
+        PS C:\> $messageParameters = @{
+        >> Subject = "Backup history for sql2017 and sql2016"
+        >> Body = Get-DbaBackupHistory -SqlInstance sql2017, sql2016 -Since '2018-08-13 00:00' | ConvertTo-DbaTimeline | Out-String
+        >> From = "dba@ad.local"
+        >> To = "dba@ad.local"
+        >> SmtpServer = "smtp.ad.local"
+        >> }
+        >>
+        PS C:\> Send-MailMessage @messageParameters -BodyAsHtml
+
+        Sends an email to dba@ad.local with the results of Get-DbaBackupHistory. Note that viewing these reports may not be supported in all email clients.
+
     #>
-
     [CmdletBinding()]
-    Param (
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseOutputTypeCorrectly", "", Justification = "PSSA Rule Ignored by BOH")]
+    param (
         [parameter(Mandatory, ValueFromPipeline)]
         [object[]]$InputObject,
+        [switch]$ExcludeRowLabel,
         [switch]$EnableException
     )
     begin {
@@ -126,27 +135,31 @@ function ConvertTo-DbaTimeline {
     }
 
     process {
-        # build html container
-        $BaseObject = $InputObject.PsObject.BaseObject
-
         # create server list to support multiple servers
         if ($InputObject[0].SqlInstance -notin $servers) {
             $servers += $InputObject[0].SqlInstance
         }
-        # This is where do column mapping.
+        <#
+            Initially I wanted the server name to appear dynamically based on whether a single or multiple servers were passed as input
+            However (as usual) this is not so simple as we're in pipe mode which means PS is processing each input at once and
+            it does not know how many parameters it has until it has gone through them all. For example $servers.count will start with 1
+            and will be increasing as the process goes through the pipe, or it will stop t 1 if there's only 1 server passed.
+            The $InputObject[0].* is also not available in the begin block. All this means that we will alway show server name next to job name now.
+            I am not 100% happy with this but not sure how to solve it for now.
+        #>
 
-        # Check for types - this will help support if someone assigns a variable then pipes
-        # AgentJobHistory is a forced type while backuphistory is a legit type
+        <#
+            This is where do column mapping.
+            Check for types - this will help support if someone assigns a variable then pipes
+            AgentJobHistory is a forced type while backuphistory is a legit type
+        #>
         if ($InputObject[0].TypeName -eq 'AgentJobHistory') {
             $CallerName = "Get-DbaAgentJobHistory"
-            $data = $InputObject | Select-Object @{ Name = "SqlInstance"; Expression = { $_.SqlInstance } }, @{ Name = "InstanceName"; Expression = { $_.InstanceName } }, @{ Name = "vLabel"; Expression = { $_.Job -replace "\'",''} }, @{ Name = "hLabel"; Expression = { $_.Status } }, @{ Name = "Style"; Expression = { $(Convert-DbaTimelineStatusColor($_.Status)) } }, @{ Name = "StartDate"; Expression = { $(ConvertTo-JsDate($_.StartDate)) } }, @{ Name = "EndDate"; Expression = { $(ConvertTo-JsDate($_.EndDate)) } }
-
-        }
-        elseif ($InputObject[0] -is [Sqlcollaborative.Dbatools.Database.BackupHistory]) {
+            $data = $InputObject | Select-Object @{ Name = "SqlInstance"; Expression = { $_.SqlInstance } }, @{ Name = "InstanceName"; Expression = { $_.InstanceName } }, @{ Name = "vLabel"; Expression = { "[" + $($_.SqlInstance -replace "\\", "\\\") + "] " + $_.Job -replace "\'", ''} }, @{ Name = "hLabel"; Expression = { $_.Status } }, @{ Name = "Style"; Expression = { $(Convert-DbaTimelineStatusColor($_.Status)) } }, @{ Name = "StartDate"; Expression = { $(ConvertTo-JsDate($_.StartDate)) } }, @{ Name = "EndDate"; Expression = { $(ConvertTo-JsDate($_.EndDate)) } }
+        } elseif ($InputObject[0] -is [Sqlcollaborative.Dbatools.Database.BackupHistory]) {
             $CallerName = "Get-DbaBackupHistory"
-            $data = $InputObject | Select-Object @{ Name = "SqlInstance"; Expression = { $_.SqlInstance } }, @{ Name = "InstanceName"; Expression = { $_.InstanceName } }, @{ Name = "vLabel"; Expression = { $_.Database } }, @{ Name = "hLabel"; Expression = { $_.Type } }, @{ Name = "StartDate"; Expression = { $(ConvertTo-JsDate($_.Start)) } }, @{ Name = "EndDate"; Expression = { $(ConvertTo-JsDate($_.End)) } }
-        }
-        else {
+            $data = $InputObject | Select-Object @{ Name = "SqlInstance"; Expression = { $_.SqlInstance } }, @{ Name = "InstanceName"; Expression = { $_.InstanceName } }, @{ Name = "vLabel"; Expression = { "[" + $($_.SqlInstance -replace "\\", "\\\") + "] " + $_.Database } }, @{ Name = "hLabel"; Expression = { $_.Type } }, @{ Name = "StartDate"; Expression = { $(ConvertTo-JsDate($_.Start)) } }, @{ Name = "EndDate"; Expression = { $(ConvertTo-JsDate($_.End)) } }
+        } else {
             # sorry to be so formal, can't help it ;)
             Stop-Function -Message "Unsupported input data. To request support for additional commands, please file an issue at dbatools.io/issues and we'll take a look"
             return
@@ -155,7 +168,7 @@ function ConvertTo-DbaTimeline {
     }
     end {
         if (Test-FunctionInterrupt) { return }
-$end = @"
+        $end = @"
 ]);
         var paddingHeight = 20;
         var rowHeight = dataTable.getNumberOfRows() * 41;
@@ -182,12 +195,13 @@ $end = @"
             timeline: {
                 rowLabelStyle: { },
                 barLabelStyle: { },
+                showRowLabels: $(if($ExcludeRowLabel){'false'} else {'true'})
             },
             hAxis: {
                 format: 'dd/MM HH:mm',
             },
         }
-        // Autosize chart. It would not be enough to just count rows and expand based on row height as there can be overlappig rows.
+        // Autosize chart. It would not be enough to just count rows and expand based on row height as there can be overlapping rows.
         // this will draw the chart, get the size of the underlying div and apply that size to the parent container and redraw:
         chart.draw(dataTable, options);
         // get the size of the chold div:
@@ -201,7 +215,7 @@ $end = @"
 </head>
 <body>
     <div class="container-fluid">
-    <div class="pull-left"><h3><code>$($CallerName)</code> timeline for server <code>$($servers -join ', ')</code></h3></div><div class="pull-right text-right"><img class="text-right" style="vertical-align:bottom; margin-top: 10px;" src="https://dbatools.io/wp-content/uploads/2016/05/dbatools-logo-1.png" width=150></div>
+    <div class="pull-left"><h3><code>$($CallerName)</code> timeline for <code>$($servers -join ', ')</code></h3></div><div class="pull-right text-right"><img class="text-right" style="vertical-align:bottom; margin-top: 10px;" src="https://dbatools.io/wp-content/uploads/2016/05/dbatools-logo-1.png" width=150></div>
          <div class="clearfix"></div>
          <div class="col-12">
             <div class="chart" id="Chart"></div>

@@ -3,9 +3,9 @@ function Get-DbaServiceErrorMessage {
     .SYNOPSIS
     Internal function. Returns the list of error code messages for Windows service management.
 
-#>
+    #>
     param(
-        [parameter(Mandatory, ValueFromPipeline, Position = 1)]
+        [parameter(ValueFromPipeline, Position = 1)]
         [int]$ErrorNumber
     )
     $returnCodes = @("The request was accepted.",
@@ -33,6 +33,10 @@ function Get-DbaServiceErrorMessage {
         "The account under which this service runs is either invalid or lacks the permissions to run the service.",
         "The service exists in the database of services available from the system.",
         "The service is currently paused in the system.")
-    if ($ErrorNumber -in 0..($returnCodes.Length - 1)) { Return $returnCodes[$ErrorNumber] }
-    else { Return "Unknown error." }
+    if ($ErrorNumber) {
+        if ($ErrorNumber -in 0..($returnCodes.Length - 1)) { Return $returnCodes[$ErrorNumber] }
+        else { Return "Unknown error." }
+    } else {
+        $returnCodes
+    }
 }

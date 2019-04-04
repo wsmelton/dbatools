@@ -3,7 +3,7 @@ function Get-OfflineSqlFileStructure {
 .SYNOPSIS
 Internal function. Returns dictionary object that contains file structures for SQL databases.
 
-#>
+    #>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory, Position = 0)]
@@ -13,7 +13,7 @@ Internal function. Returns dictionary object that contains file structures for S
         [string]$dbname,
         [Parameter(Mandatory, Position = 2)]
         [object]$filelist,
-        [Parameter(Mandatory = $false, Position = 3)]
+        [Parameter(Position = 3)]
         [bool]$ReuseSourceFolderStructure,
         [PSCredential]$SqlCredential
     )
@@ -37,8 +37,7 @@ Internal function. Returns dictionary object that contains file structures for S
         $d = @{ }
         if ($ReuseSourceFolderStructure -eq $true) {
             $d.physical = $file.PhysicalName
-        }
-        else {
+        } else {
             $directory = Get-SqlDefaultPaths $server data
             $filename = Split-Path $($file.PhysicalName) -leaf
             $d.physical = "$directory\$filename"
@@ -53,8 +52,7 @@ Internal function. Returns dictionary object that contains file structures for S
         $d = @{ }
         if ($ReuseSourceFolderStructure) {
             $d.physical = $file.PhysicalName
-        }
-        else {
+        } else {
             $directory = Get-SqlDefaultPaths $server log
             $filename = Split-Path $($file.PhysicalName) -leaf
             $d.physical = "$directory\$filename"

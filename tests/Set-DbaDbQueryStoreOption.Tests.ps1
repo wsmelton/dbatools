@@ -1,8 +1,19 @@
-$commandname = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
-Write-Host -Object "Running $PSCommandpath" -ForegroundColor Cyan
+$CommandName = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
+Write-Host -Object "Running $PSCommandPath" -ForegroundColor Cyan
 . "$PSScriptRoot\constants.ps1"
 
-Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
+Describe "$CommandName Unit Tests" -Tag 'UnitTests' {
+    Context "Validate parameters" {
+        [object[]]$params = (Get-Command $CommandName).Parameters.Keys | Where-Object {$_ -notin ('whatif', 'confirm')}
+        [object[]]$knownParameters = 'SqlInstance','SqlCredential','Database','ExcludeDatabase','AllDatabases','State','FlushInterval','CollectionInterval','MaxSize','CaptureMode','CleanupMode','StaleQueryThreshold','EnableException'
+        $knownParameters += [System.Management.Automation.PSCmdlet]::CommonParameters
+        It "Should only contain our specific parameters" {
+            (@(Compare-Object -ReferenceObject ($knownParameters | Where-Object {$_}) -DifferenceObject $params).Count ) | Should Be 0
+        }
+    }
+}
+
+Describe "$CommandName Integration Tests" -Tags "IntegrationTests" {
     BeforeAll {
         Get-DbaDatabase -SqlInstance $script:instance1, $script:instance2 | Where-Object Name -Match 'dbatoolsci' | Remove-DbaDatabase -Confirm:$false
     }
@@ -15,11 +26,18 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
                 It "should warn" {
                     $warning | Should Not Be $null
                 }
-            }
-            else {
+            } else {
                 It "should return some valid results" {
                     $result = $results | Where-Object Database -eq msdb
                     $result.ActualState | Should Be 'Off'
+                    $result.MaxStorageSizeInMB | Should BeGreaterThan 1
+                }
+
+                $newnumber = $result.DataFlushIntervalInSeconds + 1
+
+                It "should change the specified param to the new value" {
+                    $results = Set-DbaDbQueryStoreOption -SqlInstance $instance -Database msdb -FlushInterval $newnumber -State ReadWrite
+                    $results.DataFlushIntervalInSeconds | Should Be $newnumber
                 }
 
                 It "should only get one database" {
