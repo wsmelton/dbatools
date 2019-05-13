@@ -101,7 +101,7 @@ function Compare-DbaDbData {
         }
 
         if ($ExcludeEqual -and $ExludeDifferent) {
-            Stop-Function -Message "Invalid combination of parameters. You cannot use -ExcludeEqual and -ExcludeDifferent together"
+            Stop-Function -Message "You cannot use -ExcludeEqual and -ExcludeDifferent simultanuously"
             return
         }
 
@@ -155,17 +155,17 @@ function Compare-DbaDbData {
                 $sourceData = Invoke-DbaQuery -SqlInstance $sourceServer -SqlCredential $SourceSqlCredential -Database $SourceDatabase -Query $query
                 $destData = Invoke-DbaQuery -SqlInstance $destServer -SqlCredential $DestinationSqlCredential -Database $DestinationDatabase -Query $query
 
-                $result = Compare-Object -ReferenceObject $sourceData -DifferenceObject $destData -Property ($sourceData | Get-Member | Where-Object MemberType -eq Property | Select-Object Name -ExpandProperty Name)
+                $result = Compare-Object -ReferenceObject $sourceData -DifferenceObject $destData -Property ($sourceData | Get-Member | Where-Object MemberType -eq Property | Select-Object Name -ExpandProperty Name) -IncludeEqual
 
                 if ($ExcludeEqual) {
-                    $result = $result | Where-Object SideIndicator -ne "=="
+                    $result = $result | Where-Object SideIndicator -ne '=='
                 }
 
                 if ($ExludeDifferent) {
-                    $result = $result | Where-Object SideIndicator -notin "<=", "=>"
+                    $result = $result | Where-Object SideIndicator -notin '<=', '=>'
                 }
 
-                $results
+                $result
             }
 
         }
