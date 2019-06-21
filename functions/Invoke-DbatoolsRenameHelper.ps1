@@ -311,7 +311,7 @@ function Invoke-DbatoolsRenameHelper {
             foreach ($name in $allrenames.GetEnumerator()) {
                 if ((Select-String -Pattern $name.Key -Path $file)) {
                     if ($Pscmdlet.ShouldProcess($file, "Replacing $($name.Key) with $($name.Value)")) {
-                        $content = (Get-Content -Path $file -Raw).Replace($name.Key, $name.Value).Trim()
+                        $content = ((Get-Content -Path $file -Raw) -Replace "\b$($name.Key)\b", $name.Value).Trim()
                         Set-Content -Path $file -Encoding $Encoding -Value $content
                         [pscustomobject]@{
                             Path         = $file
