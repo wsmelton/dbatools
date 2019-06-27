@@ -61,6 +61,12 @@ function Invoke-DbaDbDataMasking {
     .PARAMETER ExactLength
         Mask string values to the same length. So 'Tate' will be replaced with 4 random characters.
 
+    .PARAMETER Preview
+        Preview the how the data will look before you apply it
+
+    .PARAMETER PreviewRows
+        The amount of rows to show for the preview
+
     .PARAMETER Force
         Forcefully execute commands when needed
 
@@ -126,10 +132,12 @@ function Invoke-DbaDbDataMasking {
         [int]$MaxValue,
         [int]$ModulusFactor = 10,
         [switch]$ExactLength,
+        [switch]$Preview,
+        [int]$PreviewRows = 10,
         [switch]$EnableException
     )
     begin {
-        if ($Force) {$ConfirmPreference = 'none'}
+        if ($Force) { $ConfirmPreference = 'none' }
 
         $supportedDataTypes = 'bit', 'bool', 'char', 'date', 'datetime', 'datetime2', 'decimal', 'int', 'money', 'nchar', 'ntext', 'nvarchar', 'smalldatetime', 'text', 'time', 'uniqueidentifier', 'userdefineddatatype', 'varchar'
 
@@ -138,6 +146,10 @@ function Invoke-DbaDbDataMasking {
         $supportedFakerSubTypes = Get-DbaRandomizedType | Select-Object Subtype -ExpandProperty Subtype -Unique
 
         $supportedFakerSubTypes += "Date"
+
+        if ($Preview -and $PreviewRows -lt 1) {
+            Stop-Function -Message "Rows for preview cannot be lower than 1" -Target $PreviewRows
+        }
     }
 
     process {
@@ -193,12 +205,16 @@ function Invoke-DbaDbDataMasking {
                 if ($server.VersionMajor -lt 9) {
                     Stop-Function -Message "SQL Server version must be 2005 or greater" -Continue
                 }
+
                 $db = $server.Databases[$($dbName)]
 
-                $connstring = New-DbaConnectionString -SqlInstance $instance -SqlCredential $SqlCredential -Database $dbName -Whatif:$false
-                $sqlconn = New-Object System.Data.SqlClient.SqlConnection $connstring
-                $sqlconn.Open()
-                $transaction = $sqlconn.BeginTransaction()
+                if (-not $Preview) {
+                    $connstring = New-DbaConnectionString -SqlInstance $instance -SqlCredential $SqlCredential -Database $dbName -Whatif:$false
+                    $sqlconn = New-Object System.Data.SqlClient.SqlConnection $connstring
+                    $sqlconn.Open()
+                    $transaction = $sqlconn.BeginTransaction()
+                }
+
                 $stepcounter = $nullmod = 0
 
                 foreach ($tableobject in $tables.Tables) {
@@ -219,7 +235,12 @@ function Invoke-DbaDbDataMasking {
                     try {
                         if (-not (Test-Bound -ParameterName Query)) {
                             $columnString = "[" + (($dbTable.Columns | Where-Object DataType -in $supportedDataTypes | Select-Object Name -ExpandProperty Name) -join "],[") + "]"
-                            $query = "SELECT $($columnString) FROM [$($tableobject.Schema)].[$($tableobject.Name)]"
+
+                            if ($Preview) {
+                                $query = "SELECT TOP($PreviewRows) $($columnString) FROM [$($tableobject.Schema)].[$($tableobject.Name)]"
+                            } else {
+                                $query = "SELECT $($columnString) FROM [$($tableobject.Schema)].[$($tableobject.Name)]"
+                            }
                         }
                         $data = $db.Query($query) | ConvertTo-DbaDataTable
                     } catch {
@@ -365,6 +386,8 @@ function Invoke-DbaDbDataMasking {
 
                                     $newValue = $uniqueValues[$rowNumber].$($columnobject.Name)
 
+                                } elseif ($columnobject.Deterministic -and ($row.$($columnobject.Name) -in $dictionary.Keys)) {
+                                    $newValue = $dictionary.($row.$($columnobject.Name))
                                 } else {
                                     # make sure min is good
                                     if ($columnobject.MinValue) {
@@ -567,13 +590,15 @@ function Invoke-DbaDbDataMasking {
                                 $null = $stringbuilder.AppendLine("UPDATE [$($tableobject.Schema)].[$($tableobject.Name)] SET $($columnObject.Name) = $($compositeItems -join ' + ')")
                             }
 
-                            try {
-                                $sqlcmd = New-Object System.Data.SqlClient.SqlCommand(($stringbuilder.ToString()), $sqlconn, $transaction)
-                                $null = $sqlcmd.ExecuteNonQuery()
-                            } catch {
-                                Write-Message -Level VeryVerbose -Message "$updatequery"
-                                $errormessage = $_.Exception.Message.ToString()
-                                Stop-Function -Message "Error updating $($tableobject.Schema).$($tableobject.Name): $errormessage" -Target $updatequery -Continue -ErrorRecord $_
+                            if (-not $Preview) {
+                                try {
+                                    $sqlcmd = New-Object System.Data.SqlClient.SqlCommand(($stringbuilder.ToString()), $sqlconn, $transaction)
+                                    $null = $sqlcmd.ExecuteNonQuery()
+                                } catch {
+                                    Write-Message -Level VeryVerbose -Message "$updatequery"
+                                    $errormessage = $_.Exception.Message.ToString()
+                                    Stop-Function -Message "Error updating $($tableobject.Schema).$($tableobject.Name): $errormessage" -Target $updatequery -Continue -ErrorRecord $_
+                                }
                             }
                         }
 
@@ -599,11 +624,13 @@ function Invoke-DbaDbDataMasking {
                     $uniqueValues = $null
                 }
 
-                try {
-                    $null = $transaction.Commit()
-                    $sqlconn.Close()
-                } catch {
-                    Stop-Function -Message "Failure" -Continue -ErrorRecord $_
+                if (-not $Preview) {
+                    try {
+                        $null = $transaction.Commit()
+                        $sqlconn.Close()
+                    } catch {
+                        Stop-Function -Message "Failure" -Continue -ErrorRecord $_
+                    }
                 }
             }
         }
