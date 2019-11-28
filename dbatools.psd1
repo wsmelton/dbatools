@@ -537,7 +537,7 @@
         'Read-DbaXEFile',
         'Watch-DbaXESession',
         'Test-DbaMaxMemory', # can be fixed by not testing remote when linux is detected
-        'Rename-DbaDatabase', # can maybebe fixed by not remoting when linux is detected
+        'Rename-DbaDatabase', # can maybe fixed by not remoting when linux is detected
         # CM and Windows functions
         'Install-DbaInstance',
         'Invoke-DbaAdvancedInstall',
@@ -656,7 +656,8 @@
         # Unknown
         'Get-DbaErrorLog',
         'Get-DbaManagementObject',
-        'Test-DbaManagementObject'
+        'Test-DbaManagementObject',
+        'Get-DbaServerPermission'
     )
 
     # Cmdlets to export from this module
