@@ -6,7 +6,7 @@ function New-DbaDbRole {
     .DESCRIPTION
         The New-DbaDbRole create new roles on database(s)/ instance(s) of SQL Server.
 
-   .PARAMETER SqlInstance
+    .PARAMETER SqlInstance
         The target SQL Server instance or instances.
 
     .PARAMETER SqlCredential
@@ -56,7 +56,6 @@ function New-DbaDbRole {
         PS C:\> New-DbaDbRole -SqlInstance sql2017a -Database db1 -Role 'dbExecuter'
 
         Will create a new role named dbExecuter within db1 on sql2017a instance.
-
     #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
     param (
